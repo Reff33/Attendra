@@ -1,0 +1,36 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# AI Tools & Local Artifacts (UIDM Standard)
+.claude/
+CLAUDE.md
+graphify-out/
+.mcp.json
+.agent_harnesses.json
+
+# Local Uploads & Cache
+/public/uploads
+.cache/
+
