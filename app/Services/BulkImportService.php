@@ -2,8 +2,49 @@
 
 namespace App\Services;
 
+use RuntimeException;
+
 class BulkImportService
 {
+    /**
+     * Parse an uploaded roster payload, dispatching on content type.
+     *
+     * XLSX is a ZIP archive (magic bytes "PK\x03\x04"); anything else is treated as CSV.
+     */
+    public function parse(string $content, ?string $filename = null): array
+    {
+        if (str_starts_with($content, "PK\x03\x04")) {
+            return $this->parseXlsx($content);
+        }
+
+        return $this->parseCsv($content);
+    }
+
+    /**
+     * Extract rows from an XLSX payload by writing it to a temp file for ZipArchive.
+     */
+    private function parseXlsx(string $content): array
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            throw new RuntimeException(
+                'XLSX import needs the PHP zip extension. Enable "extension=zip" in php.ini, or upload a CSV instead.'
+            );
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'attendra_xlsx_');
+
+        try {
+            file_put_contents($tmp, $content);
+
+            return array_map(
+                fn ($row) => array_map(fn ($cell) => trim((string) $cell), $row),
+                (new XlsxReader())->rows($tmp)
+            );
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
     /**
      * Parse raw CSV content into array of rows with clean UTF-8 string trimming.
      */

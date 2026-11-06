@@ -75,6 +75,10 @@
                    class="px-4 py-2 rounded-full text-xs font-semibold transition-colors {{ request()->routeIs('dashboard') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
                     Dashboard
                 </a>
+                <a href="{{ route('activities.index') }}"
+                   class="px-4 py-2 rounded-full text-xs font-semibold transition-colors {{ request()->routeIs('activities.*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
+                    Activities
+                </a>
                 <a href="{{ route('sessions.index') }}"
                    class="px-4 py-2 rounded-full text-xs font-semibold transition-colors {{ request()->routeIs('sessions.*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
                     Sessions
@@ -83,16 +87,15 @@
                    class="px-4 py-2 rounded-full text-xs font-semibold transition-colors {{ request()->routeIs('rosters.*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
                     Datasets
                 </a>
-                <a href="{{ route('matrix.index') }}"
-                   class="px-4 py-2 rounded-full text-xs font-semibold transition-colors {{ request()->routeIs('matrix.*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
-                    Reports
-                </a>
                 <div x-data="{ open: false }" class="relative">
                     <button @click="open = !open"
-                            class="px-4 py-2 rounded-full text-xs font-semibold transition-colors flex items-center gap-1 {{ request()->is('operations*') || request()->is('audit*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
+                            class="px-4 py-2 rounded-full text-xs font-semibold transition-colors flex items-center gap-1 {{ request()->routeIs('matrix.*') || request()->is('operations*') || request()->is('audit*') ? 'bg-white text-[#1C1C1E] shadow-sm border border-[#EAE6DF] font-bold' : 'text-[#8E8E93] hover:text-[#1C1C1E]' }}">
                         More ▾
                     </button>
                     <div x-show="open" @click.away="open = false" x-cloak class="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-[#F0EAE1] py-2 z-50">
+                        <a href="{{ route('matrix.index') }}" class="block px-4 py-2 text-xs font-medium text-[#1C1C1E] hover:bg-[#FAF7F2] flex items-center gap-2 {{ request()->routeIs('matrix.*') ? 'bg-[#FAF7F2] font-bold text-[#F8A926]' : '' }}">
+                            <i class="bi bi-grid-3x3-gap-fill text-[#8E8E93]"></i> Reports & Matrix
+                        </a>
                         <a href="{{ route('quick-ops.scanner') }}" class="block px-4 py-2 text-xs font-medium text-[#1C1C1E] hover:bg-[#FAF7F2] flex items-center gap-2">
                             <i class="bi bi-camera-fill text-[#8E8E93]"></i> Quick Scan Pass
                         </a>
@@ -127,12 +130,69 @@
                 @endif
             @endif
 
-            <button class="w-[38px] h-[38px] rounded-full bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-center text-[#1C1C1E] hover:bg-[#F0EAE1] transition-colors">
-                <i class="bi bi-search text-sm"></i>
-            </button>
-            <button class="w-[38px] h-[38px] rounded-full bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-center text-[#1C1C1E] hover:bg-[#F0EAE1] transition-colors">
+            <!-- Global Search: the panel overlays the icon so the navbar never shifts -->
+            <div x-data="globalSearch()" @keydown.escape.window="close()" @click.outside="open && close()" class="relative">
+                <button type="button" @click="toggle()"
+                        class="w-[38px] h-[38px] rounded-full bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-center text-[#1C1C1E] hover:bg-[#F0EAE1] transition-colors"
+                        :class="open ? 'opacity-0 pointer-events-none' : 'opacity-100'">
+                    <i class="bi bi-search text-sm"></i>
+                </button>
+
+                <div x-show="open" x-cloak
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="absolute right-0 top-0 origin-right flex items-center gap-2 h-[38px] w-[240px] sm:w-[320px] pl-3 pr-1 rounded-full bg-[#FAF7F2] border border-[#F0EAE1] shadow-sm z-50">
+                    <i class="bi bi-search text-xs text-[#8E8E93] shrink-0"></i>
+                    <input x-ref="input" x-model="q" @input.debounce.300ms="run()"
+                           type="search" placeholder="Search activities, sessions, students..."
+                           class="flex-1 min-w-0 bg-transparent text-xs text-[#1C1C1E] focus:outline-none">
+                    <button type="button" @click="close()"
+                            class="w-6 h-6 rounded-full text-[#8E8E93] hover:text-[#1C1C1E] shrink-0 flex items-center justify-center">
+                        <i class="bi bi-x-lg text-xs"></i>
+                    </button>
+                </div>
+
+                <div x-show="open && (loading || hasResults || q.length >= 2)" x-cloak
+                     class="absolute right-0 top-[46px] w-[240px] sm:w-[320px] max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-[#F0EAE1] p-2 z-[60]">
+                    <p x-show="loading" class="px-3 py-2 text-[11px] text-[#8E8E93]">Searching...</p>
+
+                    <template x-for="group in groups" :key="group.label">
+                        <div x-show="group.items.length > 0" class="mb-1">
+                            <p class="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]" x-text="group.label"></p>
+                            <template x-for="item in group.items" :key="item.id">
+                                <a :href="item.url"
+                                   class="block px-3 py-2 rounded-xl hover:bg-[#FAF7F2] transition-colors">
+                                    <p class="text-xs font-bold text-[#1C1C1E] truncate" x-text="item.title"></p>
+                                    <p class="text-[10px] text-[#8E8E93] truncate" x-text="item.subtitle"></p>
+                                </a>
+                            </template>
+                        </div>
+                    </template>
+
+                    <p x-show="!loading && !hasResults && q.length >= 2" class="px-3 py-4 text-center text-[11px] text-[#8E8E93]">
+                        No matches found.
+                    </p>
+                    <p x-show="q.length < 2" class="px-3 py-2 text-[11px] text-[#8E8E93]">
+                        Type at least 2 characters.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Notification bell -->
+            <a href="{{ route('notifications.index') }}"
+               title="Notifications"
+               class="relative w-[38px] h-[38px] rounded-full bg-[#FAF7F2] border border-[#F0EAE1] flex items-center justify-center text-[#1C1C1E] hover:bg-[#F0EAE1] transition-colors {{ request()->routeIs('notifications.*') ? 'bg-[#FEEFD0] border-[#F8A926]' : '' }}">
                 <i class="bi bi-bell text-sm"></i>
-            </button>
+                @if(($navUnread = auth()->user()->unreadNotificationsCount()) > 0)
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E07A5F] text-white text-[9px] font-bold flex items-center justify-center">
+                        {{ $navUnread > 9 ? '9+' : $navUnread }}
+                    </span>
+                @endif
+            </a>
 
             <!-- User Menu -->
             <div x-data="{ userOpen: false }" class="relative">
@@ -326,5 +386,66 @@
         @endif
     </nav>
     @stack('scripts')
+    <script>
+        function globalSearch() {
+            return {
+                open: false,
+                q: '',
+                loading: false,
+                groups: [
+                    { label: 'Activities', key: 'activities', items: [] },
+                    { label: 'Sessions', key: 'sessions', items: [] },
+                    { label: 'Participants', key: 'participants', items: [] },
+                ],
+
+                get hasResults() {
+                    return this.groups.some(g => g.items.length > 0);
+                },
+
+                toggle() {
+                    this.open = !this.open;
+                    if (this.open) {
+                        this.$nextTick(() => this.$refs.input?.focus());
+                    } else {
+                        this.reset();
+                    }
+                },
+
+                close() {
+                    this.open = false;
+                    this.reset();
+                },
+
+                reset() {
+                    this.q = '';
+                    this.groups.forEach(g => g.items = []);
+                },
+
+                async run() {
+                    const query = this.q.trim();
+
+                    if (query.length < 2) {
+                        this.groups.forEach(g => g.items = []);
+                        return;
+                    }
+
+                    this.loading = true;
+
+                    try {
+                        const res = await fetch(`{{ route('search') }}?q=${encodeURIComponent(query)}`, {
+                            headers: { 'Accept': 'application/json' },
+                        });
+                        const data = await res.json();
+
+                        this.groups.forEach(g => g.items = data[g.key] || []);
+                    } catch (e) {
+                        this.groups.forEach(g => g.items = []);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+            };
+        }
+    </script>
 </body>
 </html>

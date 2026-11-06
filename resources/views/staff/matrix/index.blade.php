@@ -1,7 +1,13 @@
 @extends('layouts.app', ['title' => 'Cohort Attendance Matrix'])
 
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6" x-data="matrixCorrection()">
+    @if(session('success'))
+        <div class="px-4 py-3 rounded-xl bg-[#EBF5EC] border border-[#2E7D32]/20 text-xs font-semibold text-[#2E7D32]">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="px-4 py-3 rounded-xl bg-[#FDE8E1] border border-[#E07A5F]/20 text-xs font-semibold text-[#E07A5F]">{{ session('error') }}</div>
+    @endif
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-[#1C1C1E]">
@@ -100,17 +106,13 @@
                                 @endphp
                                 <td class="py-3.5 px-4 text-center">
                                     @if($rec)
-                                        @if($rec->is_walk_in)
-                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#FDE8E1] text-[#E07A5F] font-bold text-xs shadow-sm"
-                                                  title="Walk-In Verified: {{ $rec->checked_in_at->format('h:i A') }}">
-                                                W
-                                            </span>
-                                        @else
-                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EBF5EC] text-[#2E7D32] font-bold text-xs shadow-sm"
-                                                  title="Checked In: {{ $rec->checked_in_at->format('h:i A') }}">
-                                                ✓
-                                            </span>
-                                        @endif
+                                        <button type="button"
+                                                @click="open('{{ addslashes($rec->student_name) }}', '{{ $rec->status }}', '{{ route('sessions.records.correct', [$sess, $rec]) }}', '{{ route('sessions.records.destroy', [$sess, $rec]) }}')"
+                                                class="inline-flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs shadow-sm cursor-pointer hover:ring-2 hover:ring-[#F8A926] transition-all
+                                                {{ $rec->status === 'excused' ? 'bg-[#E8EAFA] text-[#4C5270]' : ($rec->status === 'late' ? 'bg-[#FEEFD0] text-[#7A521E]' : ($rec->is_walk_in ? 'bg-[#FDE8E1] text-[#E07A5F]' : 'bg-[#EBF5EC] text-[#2E7D32]')) }}"
+                                                title="Click to correct: {{ $rec->student_name }} ({{ $rec->status }})">
+                                            {{ $rec->status === 'excused' ? 'E' : ($rec->status === 'late' ? 'L' : ($rec->is_walk_in ? 'W' : '✓')) }}
+                                        </button>
                                     @else
                                         <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#FAF7F2] text-[#8E8E93] text-xs">
                                             —
@@ -140,5 +142,94 @@
             </table>
         </div>
     </div>
+
+    <!-- Record Correction Modal (PRD §6.1: reason required, every change audited) -->
+    <div x-show="open_" x-cloak @click.self="open_ = false"
+         class="fixed inset-0 z-[900] flex items-center justify-center bg-[#1C1C1E]/40 p-4">
+        <div class="bg-white rounded-[24px] p-6 w-full max-w-md shadow-xl space-y-4" @click.stop>
+            <div>
+                <h3 class="text-sm font-bold text-[#1C1C1E]">Correct Attendance Record</h3>
+                <p class="text-xs text-[#8E8E93] mt-0.5" x-text="studentName"></p>
+            </div>
+
+            <form :action="correctUrl" method="POST" class="space-y-4">
+                @csrf
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-2">New Status</label>
+                    <select name="status" x-model="status" required
+                            class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white">
+                        <option value="present">Present</option>
+                        <option value="late">Late</option>
+                        <option value="excused">Excused</option>
+                        <option value="absent">Absent</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-2">
+                        Reason <span class="text-[#E07A5F]">*</span>
+                    </label>
+                    <textarea name="override_reason" rows="2" required minlength="5" maxlength="255" x-model="reason"
+                              placeholder="e.g. Student attended but QR failed"
+                              class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white resize-none"></textarea>
+                    <p class="text-[10px] text-[#8E8E93] mt-1">Recorded in the immutable audit log with your staff ID.</p>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    <button type="button" @click="open_ = false"
+                            class="px-4 py-2 rounded-xl bg-[#FAF7F2] hover:bg-[#F0EAE1] text-xs font-bold text-[#1C1C1E] border border-[#F0EAE1]">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 rounded-xl bg-[#F8A926] hover:bg-[#e09418] text-xs font-bold text-[#1C1C1E] shadow-sm">
+                        Save Correction
+                    </button>
+                </div>
+            </form>
+
+            <!-- Deleting frees the unique constraint so the student can check in again -->
+            <form :action="deleteUrl" method="POST" class="pt-3 border-t border-[#F0EAE1]"
+                  @submit="if (!confirm('Remove this record? The student will be able to check in again.') || !requireReason()) { $event.preventDefault(); }">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="override_reason" :value="reason">
+                <button type="submit" class="text-[11px] font-bold text-[#E07A5F] hover:underline">
+                    Remove record entirely
+                </button>
+            </form>
+        </div>
+    </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function matrixCorrection() {
+        return {
+            open_: false,
+            studentName: '',
+            status: 'present',
+            reason: '',
+            correctUrl: '',
+            deleteUrl: '',
+            open(name, status, correctUrl, deleteUrl) {
+                this.studentName = name;
+                this.status = status;
+                this.correctUrl = correctUrl;
+                this.deleteUrl = deleteUrl;
+                this.reason = '';
+                this.open_ = true;
+            },
+            // Deletion is audited too, so it reuses the reason typed above.
+            requireReason() {
+                if (this.reason.trim().length >= 5) {
+                    return true;
+                }
+
+                alert('Type a reason of at least 5 characters in the Reason field first.');
+                return false;
+            },
+        };
+    }
+</script>
+@endpush

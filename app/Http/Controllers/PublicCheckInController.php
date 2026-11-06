@@ -28,8 +28,7 @@ class PublicCheckInController extends Controller
         }
 
         $participants = Participant::whereHas('roster', function ($q) use ($session) {
-            $q->where('activity_id', $session->activity_id)
-              ->where('is_active', true);
+            $q->where('activity_id', $session->activity_id);
         })
         ->where(function ($q) use ($query) {
             $q->where('name', 'like', "%{$query}%")
@@ -73,8 +72,7 @@ class PublicCheckInController extends Controller
         // Check if student is in roster
         $participant = Participant::where('matric_no', $matricNo)
             ->whereHas('roster', function ($q) use ($session) {
-                $q->where('activity_id', $session->activity_id)
-                  ->where('is_active', true);
+                $q->where('activity_id', $session->activity_id);
             })->first();
 
         if (!$participant) {

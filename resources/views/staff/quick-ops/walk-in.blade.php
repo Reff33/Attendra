@@ -1,7 +1,7 @@
 @extends('layouts.app', ['title' => 'Manual Walk-In Registration'])
 
 @section('content')
-<div class="max-w-2xl mx-auto space-y-6">
+<div class="space-y-6">
     <div class="flex items-center justify-between">
         <div>
             <a href="{{ route('dashboard') }}" class="text-xs font-bold text-[#8E8E93] hover:text-[#1C1C1E] flex items-center gap-1 mb-1">
@@ -28,10 +28,10 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ route('quick-ops.walk-in.store') }}" class="space-y-4">
+        <form method="POST" action="{{ route('quick-ops.walk-in.store') }}" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             @csrf
 
-            <div>
+            <div class="lg:col-span-2">
                 <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-1.5">
                     Target Session
                 </label>
@@ -61,7 +61,7 @@
                        class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] uppercase">
             </div>
 
-            <div>
+            <div class="lg:col-span-2">
                 <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-1.5">
                     Justification / Reason for Manual Override
                 </label>
@@ -74,7 +74,7 @@
                 </select>
             </div>
 
-            <div class="pt-4 border-t border-[#F0EAE1] flex items-center justify-end gap-3">
+            <div class="pt-4 border-t border-[#F0EAE1] flex items-center justify-end gap-3 lg:col-span-2">
                 <a href="{{ route('dashboard') }}"
                    class="px-5 py-2.5 rounded-xl bg-[#FAF7F2] hover:bg-[#F0EAE1] text-xs font-bold text-[#1C1C1E] border border-[#F0EAE1]">
                     Cancel

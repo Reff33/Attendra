@@ -1,14 +1,18 @@
 <?php
 
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\AttendanceRecordController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MatrixController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicCheckInController;
 use App\Http\Controllers\QuickOpsController;
 use App\Http\Controllers\RosterController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,8 +28,12 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // 2. Public Student Attendance Form (No auth required, PRD §2.1 A02)
 Route::prefix('attend')->group(function () {
     Route::get('/{token}', [PublicCheckInController::class, 'show'])->name('public.checkin');
-    Route::get('/{token}/search', [PublicCheckInController::class, 'searchRoster'])->name('public.roster-search');
-    Route::post('/{token}/submit', [PublicCheckInController::class, 'submit'])->name('public.checkin.submit');
+    Route::get('/{token}/search', [PublicCheckInController::class, 'searchRoster'])
+        ->middleware('throttle:20,1') // PRD §6.2 #2: anti-scraping cap, 20 req/min per IP
+        ->name('public.roster-search');
+    Route::post('/{token}/submit', [PublicCheckInController::class, 'submit'])
+        ->middleware('throttle:10,1')
+        ->name('public.checkin.submit');
     Route::get('/{token}/pass/{hash}', [PublicCheckInController::class, 'pass'])->name('public.pass');
 });
 
@@ -34,16 +42,30 @@ Route::middleware('auth')->group(function () {
     // Organizer Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Activities (parent records that own rosters and sessions)
+    Route::prefix('activities')->group(function () {
+        Route::get('/', [ActivityController::class, 'index'])->name('activities.index');
+        Route::get('/create', [ActivityController::class, 'create'])->name('activities.create');
+        Route::post('/', [ActivityController::class, 'store'])->name('activities.store');
+        Route::get('/{activity}/edit', [ActivityController::class, 'edit'])->name('activities.edit');
+        Route::put('/{activity}', [ActivityController::class, 'update'])->name('activities.update');
+        Route::post('/{activity}/toggle', [ActivityController::class, 'toggleStatus'])->name('activities.toggle');
+    });
+
     // Sessions Management & Broadcast
     Route::prefix('sessions')->group(function () {
         Route::get('/', [SessionController::class, 'index'])->name('sessions.index');
         Route::get('/create', [SessionController::class, 'create'])->name('sessions.create');
         Route::post('/', [SessionController::class, 'store'])->name('sessions.store');
-        Route::post('/{session}/toggle', [SessionController::class, 'toggleStatus'])->name('sessions.toggle');
-        Route::post('/{session}/duplicate', [SessionController::class, 'duplicate'])->name('sessions.duplicate');
-        Route::get('/{session}/broadcast', [SessionController::class, 'broadcast'])->name('sessions.broadcast');
-        Route::get('/{session}/live-stats', [SessionController::class, 'liveStats'])->name('sessions.live-stats');
-        Route::get('/{session}/export', [SessionController::class, 'export'])->name('sessions.export');
+        Route::post('/{session}/toggle', [SessionController::class, 'toggleStatus'])->name('sessions.toggle')->can('manage', 'session');
+        Route::post('/{session}/duplicate', [SessionController::class, 'duplicate'])->name('sessions.duplicate')->can('manage', 'session');
+        Route::get('/{session}/broadcast', [SessionController::class, 'broadcast'])->name('sessions.broadcast')->can('manage', 'session');
+        Route::get('/{session}/live-stats', [SessionController::class, 'liveStats'])->name('sessions.live-stats')->can('manage', 'session');
+        Route::get('/{session}/export', [SessionController::class, 'export'])->name('sessions.export')->can('manage', 'session');
+
+        // Manual record corrections (reason + audit trail required)
+        Route::post('/{session}/records/{record}/correct', [AttendanceRecordController::class, 'correct'])->name('sessions.records.correct')->can('manage', 'session');
+        Route::delete('/{session}/records/{record}', [AttendanceRecordController::class, 'destroy'])->name('sessions.records.destroy')->can('manage', 'session');
     });
 
     // Rosters & Eligible Datasets
@@ -66,6 +88,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/walk-in', [QuickOpsController::class, 'storeWalkIn'])->name('quick-ops.walk-in.store');
     });
 
+    // Global search (top bar) & Notification inbox
+    Route::get('/search', SearchController::class)->middleware('throttle:60,1')->name('search');
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('/{notification}', [NotificationController::class, 'show'])->name('notifications.show');
+        Route::post('/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::delete('/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+    });
+
     // User Profile & Account Settings
     Route::prefix('profile')->group(function () {
         Route::get('/', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -76,7 +109,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // System Administrator Oversight (PRD §5.2)
-    Route::prefix('admin')->group(function () {
+    Route::prefix('admin')->middleware('admin')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
         Route::get('/staff', [AdminController::class, 'staffIndex'])->name('admin.staff.index');
         Route::post('/staff', [AdminController::class, 'storeStaff'])->name('admin.staff.store');

@@ -18,6 +18,10 @@
                 <span>{{ now()->format('d M, Y') }} - Today</span>
                 <i class="bi bi-chevron-down text-[10px] text-[#8E8E93]"></i>
             </div>
+            <a href="{{ route('activities.index') }}"
+               class="px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF7F2] text-[#1C1C1E] text-xs font-bold border border-[#F0EAE1] transition-colors shadow-2xs flex items-center gap-1.5">
+                <i class="bi bi-collection"></i> Activities
+            </a>
             <a href="{{ route('sessions.create') }}"
                class="px-5 py-2.5 rounded-xl bg-[#F8A926] hover:bg-[#e09418] text-[#1C1C1E] text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
                 <i class="bi bi-plus-lg font-bold"></i> + Create New Session

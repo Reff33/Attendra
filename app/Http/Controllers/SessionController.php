@@ -11,6 +11,18 @@ use Illuminate\Support\Str;
 
 class SessionController extends Controller
 {
+    /**
+     * Staff may only touch their own activities; admins oversee everything (Domain Rule 1).
+     */
+    private function authorizeActivity(Activity $activity): void
+    {
+        $user = Auth::user();
+
+        if (! $user->isAdmin() && $activity->user_id !== $user->id) {
+            abort(403, 'Unauthorized access to this activity.');
+        }
+    }
+
     public function index()
     {
         $user = Auth::user();
@@ -36,6 +48,11 @@ class SessionController extends Controller
             ? Activity::with('rosters')->get()
             : Activity::where('user_id', $user->id)->with('rosters')->get();
 
+        if ($activities->isEmpty()) {
+            return redirect()->route('activities.create')
+                ->with('success', 'Create an activity first — every attendance session belongs to one.');
+        }
+
         return view('staff.sessions.create', compact('activities'));
     }
 
@@ -52,6 +69,9 @@ class SessionController extends Controller
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after_or_equal:starts_at',
         ]);
+
+        $activity = Activity::findOrFail($request->activity_id);
+        $this->authorizeActivity($activity);
 
         $session = EventSession::create([
             'activity_id' => $request->activity_id,
@@ -94,11 +114,6 @@ class SessionController extends Controller
 
     public function duplicate(EventSession $session)
     {
-        $user = Auth::user();
-        if (!$user->isAdmin() && $session->activity->user_id !== $user->id) {
-            abort(403, 'Unauthorized access to session.');
-        }
-
         $newTitle = $session->title . ' (Copy)';
         $newSession = EventSession::create([
             'activity_id' => $session->activity_id,

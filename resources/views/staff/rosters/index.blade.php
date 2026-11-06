@@ -8,7 +8,7 @@
                 Rosters & Eligible Datasets
             </h1>
             <p class="text-xs text-[#8E8E93] mt-0.5">
-                Enterprise multi-column CSV intake with interactive header mapping, data validation & SHA-256 audit freeze
+                Enterprise multi-column CSV / XLSX intake with interactive header mapping, data validation & SHA-256 audit freeze
             </p>
         </div>
         <div class="flex items-center gap-2">
@@ -40,7 +40,7 @@
             <div class="bg-white rounded-[28px] p-6 border border-[#F0EAE1] shadow-sm space-y-5">
                 <div>
                     <span class="text-[11px] font-bold uppercase tracking-wider text-[#8E8E93]">DATASET INTAKE</span>
-                    <h3 class="text-sm font-bold text-[#1C1C1E] mt-0.5">Upload Participant CSV</h3>
+                    <h3 class="text-sm font-bold text-[#1C1C1E] mt-0.5">Upload Participant Roster</h3>
                     <p class="text-[11px] text-[#8E8E93] mt-1 leading-relaxed">
                         Interactive column mapper with auto-detection. Supports any column order without hardcoded row assumptions.
                     </p>
@@ -62,16 +62,46 @@
                     </div>
 
                     <div>
+                        <div class="flex items-center gap-1 p-1 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] mb-3">
+                            <button type="button" @click="source = 'file'"
+                                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                                    :class="source === 'file' ? 'bg-white text-[#1C1C1E] shadow-sm' : 'text-[#8E8E93]'">
+                                <i class="bi bi-upload"></i> Upload File
+                            </button>
+                            <button type="button" @click="source = 'sheet'"
+                                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                                    :class="source === 'sheet' ? 'bg-white text-[#1C1C1E] shadow-sm' : 'text-[#8E8E93]'">
+                                <i class="bi bi-link-45deg"></i> Google Sheet
+                            </button>
+                        </div>
+
                         <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-1.5">
-                            CSV Roster File <span class="text-[#E07A5F]">*</span>
+                            <span x-show="source === 'file'">Roster File (CSV / XLSX) <span class="text-[#E07A5F]">*</span></span>
+                            <span x-show="source === 'sheet'">Google Sheets Link <span class="text-[#E07A5F]">*</span></span>
                         </label>
-                        <div class="border-2 border-dashed border-[#F0EAE1] bg-[#FAF7F2] hover:bg-[#FAF7F2]/80 transition-colors rounded-2xl p-5 text-center cursor-pointer relative"
-                             @click="$refs.fileInput.click()">
-                            <input type="file" x-ref="fileInput" accept=".csv,.txt" class="hidden"
-                                   @change="handleFileChange($event)">
-                            <i class="bi bi-cloud-arrow-up text-3xl text-[#8E8E93]"></i>
-                            <p class="text-xs font-bold text-[#1C1C1E] mt-2" x-text="fileName || 'Click to select CSV file'"></p>
-                            <span class="text-[10px] text-[#8E8E93] block mt-0.5" x-text="fileSizeText || 'Max 10MB • Auto-detects columns'"></span>
+
+                        <div x-show="source === 'file'">
+                            <div class="border-2 border-dashed border-[#F0EAE1] bg-[#FAF7F2] hover:bg-[#FAF7F2]/80 transition-colors rounded-2xl p-5 text-center cursor-pointer relative"
+                                 @click="$refs.fileInput.click()">
+                                <input type="file" x-ref="fileInput" accept=".csv,.txt,.xlsx" class="hidden"
+                                       @change="handleFileChange($event)">
+                                <i class="bi bi-cloud-arrow-up text-3xl text-[#8E8E93]"></i>
+                                <p class="text-xs font-bold text-[#1C1C1E] mt-2" x-text="fileName || 'Click to select CSV or XLSX file'"></p>
+                                <span class="text-[10px] text-[#8E8E93] block mt-0.5" x-text="fileSizeText || 'Max 10MB • Auto-detects columns'"></span>
+                            </div>
+                        </div>
+
+                        <div x-show="source === 'sheet'" x-cloak class="space-y-2">
+                            <input type="url" x-model="sheetUrl"
+                                   placeholder="https://docs.google.com/spreadsheets/d/..."
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] transition-all">
+                            <div class="p-3 bg-[#FEEFD0] rounded-2xl text-[11px] text-[#7A521E] leading-relaxed flex items-start gap-2">
+                                <i class="bi bi-info-circle text-base shrink-0 mt-0.5"></i>
+                                <div>
+                                    In Google Sheets, set <strong>Share → General access → Anyone with the link</strong>.
+                                    The sheet is read once and stored as a frozen roster snapshot — later edits in Google do not sync.
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -82,13 +112,13 @@
                         </div>
                     </div>
 
-                    <button type="button" @click="startPreview()" :disabled="!hasFile || isReading"
+                    <button type="button" @click="startPreview()" :disabled="isReading || (source === 'file' ? !hasFile : !sheetUrl.trim())"
                             class="w-full py-2.5 rounded-xl bg-[#F8A926] hover:bg-[#e09418] disabled:opacity-50 text-[#1C1C1E] text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5">
                         <i class="bi bi-magic" x-show="!isReading"></i>
                         <span x-show="!isReading">Preview & Map Columns</span>
                         <span x-show="isReading" class="flex items-center gap-1.5">
                             <span class="w-3.5 h-3.5 border-2 border-[#1C1C1E] border-t-transparent rounded-full animate-spin"></span>
-                            Reading CSV...
+                            Reading file...
                         </span>
                     </button>
                 </div>
@@ -203,7 +233,7 @@
                         </span>
                         <span class="text-xs text-[#8E8E93]" x-text="fileName"></span>
                     </div>
-                    <h3 class="text-base font-bold text-[#1C1C1E] mt-1">Review CSV Structure & Map Data Fields</h3>
+                    <h3 class="text-base font-bold text-[#1C1C1E] mt-1">Review Roster Structure & Map Data Fields</h3>
                     <p class="text-xs text-[#8E8E93]">
                         Map each column to its corresponding participant field in database. System auto-detected best matches.
                     </p>
@@ -385,6 +415,8 @@
 function rosterImporter() {
     return {
         activityId: '{{ $selectedActivity?->id ?? $activities->first()?->id }}',
+        source: 'file',
+        sheetUrl: '',
         hasFile: false,
         fileName: '',
         fileSizeText: '',
@@ -414,16 +446,25 @@ function rosterImporter() {
         },
 
         async startPreview() {
-            const input = this.$refs.fileInput;
-            if (!input.files || !input.files[0]) {
-                alert('Please select a CSV file first.');
-                return;
+            const formData = new FormData();
+            formData.append('activity_id', this.activityId);
+
+            if (this.source === 'sheet') {
+                if (!this.sheetUrl.trim()) {
+                    alert('Paste a Google Sheets link first.');
+                    return;
+                }
+                formData.append('sheet_url', this.sheetUrl.trim());
+            } else {
+                const input = this.$refs.fileInput;
+                if (!input.files || !input.files[0]) {
+                    alert('Please select a CSV or XLSX file first.');
+                    return;
+                }
+                formData.append('roster_file', input.files[0]);
             }
 
             this.isReading = true;
-            const formData = new FormData();
-            formData.append('activity_id', this.activityId);
-            formData.append('roster_file', input.files[0]);
 
             try {
                 const response = await fetch('{{ route('rosters.preview') }}', {
@@ -437,8 +478,7 @@ function rosterImporter() {
 
                 const data = await response.json();
                 if (!response.ok || !data.success) {
-                    alert(data.message || 'Failed to read CSV file.');
-                    this.isReading = false;
+                    alert(data.message || 'Failed to read roster source.');
                     return;
                 }
 
@@ -446,6 +486,7 @@ function rosterImporter() {
                 this.sampleRows = data.sample_rows || [];
                 this.totalRows = data.total_data_rows || 0;
                 this.rawContent = data.raw_content || '';
+                this.fileName = data.file_name || this.fileName;
 
                 // Apply heuristics detected from server
                 const d = data.detected || {};

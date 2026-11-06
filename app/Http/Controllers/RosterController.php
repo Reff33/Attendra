@@ -6,11 +6,13 @@ use App\Models\Activity;
 use App\Models\AuditLog;
 use App\Models\Participant;
 use App\Models\Roster;
+use App\Models\UserNotification;
 use App\Services\BulkImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class RosterController extends Controller
 {
@@ -36,13 +38,15 @@ class RosterController extends Controller
     }
 
     /**
-     * Preview CSV file and return detected headers and sample rows (Enterprise Step 1 & 2).
+     * Preview a roster from an uploaded file OR a pasted Google Sheets link.
+     * Returns detected headers and sample rows (Enterprise Step 1 & 2).
      */
     public function preview(Request $request, BulkImportService $importService): JsonResponse
     {
         $request->validate([
             'activity_id' => 'required|exists:activities,id',
-            'roster_file' => 'required|file|mimes:csv,txt|max:10240',
+            'roster_file' => 'required_without:sheet_url|nullable|file|mimes:csv,txt,xlsx|max:10240',
+            'sheet_url' => 'required_without:roster_file|nullable|string|max:2048',
         ]);
 
         $user = Auth::user();
@@ -53,16 +57,21 @@ class RosterController extends Controller
         }
 
         try {
-            $file = $request->file('roster_file');
-            $content = file_get_contents($file->getRealPath());
-
-            if ($content === false || trim($content) === '') {
-                return response()->json(['success' => false, 'message' => 'Uploaded CSV file is empty.'], 422);
+            if ($request->filled('sheet_url')) {
+                [$content, $filename] = $this->fetchSheet($request->input('sheet_url'));
+            } else {
+                $file = $request->file('roster_file');
+                $content = file_get_contents($file->getRealPath());
+                $filename = $file->getClientOriginalName();
             }
 
-            $allRows = $importService->parseCsv($content);
+            if ($content === false || trim($content) === '') {
+                return response()->json(['success' => false, 'message' => 'The roster source is empty.'], 422);
+            }
+
+            $allRows = $importService->parse($content, $filename);
             if (empty($allRows)) {
-                return response()->json(['success' => false, 'message' => 'No readable data rows found in CSV.'], 422);
+                return response()->json(['success' => false, 'message' => 'No readable data rows found in the uploaded file.'], 422);
             }
 
             // Headers are row 0
@@ -83,19 +92,61 @@ class RosterController extends Controller
 
             return response()->json([
                 'success'         => true,
-                'file_name'       => $file->getClientOriginalName(),
+                'file_name'       => $filename,
                 'headers'         => $headers,
                 'sample_rows'     => $sampleRows,
                 'detected'        => $detected,
                 'total_data_rows' => $totalDataRows,
                 'raw_content'     => base64_encode($content),
             ]);
+        } catch (\InvalidArgumentException | \RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to parse CSV: ' . $e->getMessage(),
+                'message' => 'Failed to parse roster: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Turn a Google Sheets share link into a CSV export download.
+     *
+     * The host is hardcoded and only the sheet ID is taken from user input, so this
+     * cannot be pointed at an arbitrary URL (no SSRF surface).
+     *
+     * @return array{0: string, 1: string} [content, filename]
+     */
+    private function fetchSheet(string $url): array
+    {
+        if (! preg_match('#/spreadsheets/d/([A-Za-z0-9_-]+)#', $url, $match)) {
+            throw new \InvalidArgumentException(
+                'That does not look like a Google Sheets link. It should contain /spreadsheets/d/<sheet-id>.'
+            );
+        }
+
+        $sheetId = $match[1];
+        $gid = preg_match('/[#&?]gid=(\d+)/', $url, $g) ? $g[1] : '0';
+        $exportUrl = "https://docs.google.com/spreadsheets/d/{$sheetId}/export?format=csv&gid={$gid}";
+
+        $response = Http::timeout(20)->get($exportUrl);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException(
+                'Could not read the sheet. In Google Sheets choose Share → General access → "Anyone with the link" and try again.'
+            );
+        }
+
+        $body = $response->body();
+
+        // A private sheet answers with the Google sign-in page instead of CSV.
+        if (stripos(substr($body, 0, 2000), '<html') !== false) {
+            throw new \RuntimeException(
+                'The sheet is not publicly readable. Set sharing to "Anyone with the link" and try again.'
+            );
+        }
+
+        return [$body, 'google-sheet-' . $sheetId . '.csv'];
     }
 
     /**
@@ -126,9 +177,9 @@ class RosterController extends Controller
             return back()->with('error', 'Invalid CSV payload data.');
         }
 
-        $allRows = $importService->parseCsv($csvContent);
+        $allRows = $importService->parse($csvContent, $request->input('filename'));
         if (count($allRows) <= 1) {
-            return back()->with('error', 'CSV file contains no data rows.');
+            return back()->with('error', 'The uploaded file contains no data rows.');
         }
 
         $dataRows = array_slice($allRows, 1);
@@ -226,6 +277,15 @@ class RosterController extends Controller
                 'Roster',
                 (string) $roster->id,
                 "Imported {$createdCount} participants (v{$version}) via interactive column mapping for '{$activity->title}'."
+            );
+
+            UserNotification::notify(
+                $activity->user_id,
+                'Roster imported',
+                "{$createdCount} participants loaded into \"{$activity->title}\" (v{$version}).",
+                'roster',
+                route('rosters.index', ['activity_id' => $activity->id]),
+                'normal'
             );
         });
 

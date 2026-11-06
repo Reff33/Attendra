@@ -37,7 +37,7 @@
                         <tr class="hover:bg-[#FAF7F2]/60 transition-colors">
                             <td class="py-3.5 px-4 font-bold text-[#1C1C1E]">
                                 {{ $act->title }}
-                                <div class="text-[11px] font-mono text-[#8E8E93] font-normal">{{ $act->code }}</div>
+                                <div class="text-[11px] font-mono text-[#8E8E93] font-normal">{{ $act->slug }}</div>
                             </td>
                             <td class="py-3.5 px-4">
                                 <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8EAFA] text-[#4C5270]">

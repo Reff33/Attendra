@@ -12,6 +12,18 @@ use Illuminate\Support\Str;
 
 class QuickOpsController extends Controller
 {
+    /**
+     * Staff may only operate sessions under their own activities (Domain Rule 1).
+     */
+    private function authorizeSession(EventSession $session): void
+    {
+        $user = Auth::user();
+
+        if (! $user->isAdmin() && $session->activity?->user_id !== $user->id) {
+            abort(403, 'Unauthorized access to this session.');
+        }
+    }
+
     public function scanner()
     {
         $user = Auth::user();
@@ -49,6 +61,7 @@ class QuickOpsController extends Controller
 
         $matricNo = strtoupper(trim($request->matric_no));
         $session = EventSession::findOrFail($request->session_id);
+        $this->authorizeSession($session);
 
         // Enforce UNIQUE(event_session_id, matric_no) domain rule
         $existing = AttendanceRecord::where('event_session_id', $session->id)
@@ -101,6 +114,7 @@ class QuickOpsController extends Controller
         $sessionId = (int) $request->session_id;
         $payload = trim($request->qr_payload);
         $session = EventSession::findOrFail($sessionId);
+        $this->authorizeSession($session);
 
         // 1. Check if payload is an existing digital ticket token or pass URL
         $token = $payload;

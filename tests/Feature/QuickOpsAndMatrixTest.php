@@ -66,4 +66,21 @@ class QuickOpsAndMatrixTest extends TestCase
         $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertTrue(str_contains($response->headers->get('content-disposition'), 'Attendra_Matrix_'));
     }
+
+    public function test_restructured_staff_pages_render(): void
+    {
+        $staff = User::where('role', 'staff')->first();
+        $activity = Activity::where('user_id', $staff->id)->firstOrFail();
+
+        foreach ([
+            route('activities.create'),
+            route('activities.edit', $activity),
+            route('sessions.create'),
+            route('quick-ops.scanner'),
+            route('quick-ops.walk-in'),
+            route('notifications.index'),
+        ] as $url) {
+            $this->actingAs($staff)->get($url)->assertOk();
+        }
+    }
 }

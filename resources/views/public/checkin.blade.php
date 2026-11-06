@@ -105,8 +105,6 @@
                     if (!navigator.geolocation) {
                         this.gpsStatus = 'failed';
                         this.gpsError = 'Device does not support GPS';
-                        this.studentLat = {{ $session->latitude ?? 2.313889 }};
-                        this.studentLng = {{ $session->longitude ?? 102.319444 }};
                         return;
                     }
                     navigator.geolocation.getCurrentPosition(
@@ -116,11 +114,13 @@
                             this.gpsStatus = 'success';
                         },
                         (err) => {
+                            // No fallback: a spoofed venue coordinate would defeat the geofence entirely.
                             this.gpsStatus = 'failed';
-                            this.gpsError = 'GPS permission denied or out of range';
-                            // Fallback simulation for local dev/testing
-                            this.studentLat = {{ $session->latitude ?? 2.313889 }};
-                            this.studentLng = {{ $session->longitude ?? 102.319444 }};
+                            this.gpsError = err.code === 1
+                                ? 'Location permission denied. Enable it and retry.'
+                                : 'Could not read your location. Move to an open area and retry.';
+                            this.studentLat = null;
+                            this.studentLng = null;
                         },
                         { enableHighAccuracy: true, timeout: 8000 }
                     );
@@ -222,16 +222,20 @@
                             </div>
                             <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full"
                                   :class="gpsStatus === 'success' ? 'bg-[#2E7D32] text-white' : (gpsStatus === 'failed' ? 'bg-[#E07A5F] text-white' : 'bg-[#F8A926] text-[#1C1C1E]')">
-                                <span x-text="gpsStatus === 'success' ? 'PASSED' : (gpsStatus === 'failed' ? 'DEV MODE' : 'DETECTING')"></span>
+                                <span x-text="gpsStatus === 'success' ? 'PASSED' : (gpsStatus === 'failed' ? 'FAILED' : 'DETECTING')"></span>
                             </span>
                         </div>
                     </div>
-                    <input type="hidden" name="latitude" :value="studentLat || '{{ $session->latitude ?? 2.313889 }}'">
-                    <input type="hidden" name="longitude" :value="studentLng || '{{ $session->longitude ?? 102.319444 }}'">
+                    <input type="hidden" name="latitude" :value="studentLat ?? ''">
+                    <input type="hidden" name="longitude" :value="studentLng ?? ''">
                 @endif
 
                 <!-- Submit Button -->
                 <button type="submit"
+                        @if(in_array($session->verification_mode, ['gps', 'ic_and_gps']))
+                        :disabled="gpsStatus === 'failed'"
+                        :class="gpsStatus === 'failed' ? 'opacity-50 cursor-not-allowed' : ''"
+                        @endif
                         class="w-full py-3.5 px-4 rounded-xl bg-[#F8A926] hover:bg-[#e09418] text-[#1C1C1E] font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2">
                     <i class="bi bi-qr-code"></i> Confirm & Check In Attendance
                 </button>

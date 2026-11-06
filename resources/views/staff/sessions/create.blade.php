@@ -12,7 +12,7 @@
 @endpush
 
 @section('content')
-<div class="max-w-3xl mx-auto space-y-6">
+<div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div>
@@ -31,53 +31,28 @@
     <!-- Session Form Card -->
     <div class="bg-white rounded-[28px] border border-[#F0EAE1] shadow-sm p-6 sm:p-8"
          x-data="sessionForm()">
-        <form method="POST" action="{{ route('sessions.store') }}" class="space-y-6">
+        <form method="POST" action="{{ route('sessions.store') }}" class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             @csrf
 
-            <!-- Activity Target & Roster Dataset -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-2">
-                        Parent Activity
-                    </label>
-                    <select name="activity_id" required
-                            class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white transition-all">
-                        @foreach($activities as $act)
-                            <option value="{{ $act->id }}">{{ $act->title }} ({{ $act->faculty }})</option>
-                        @endforeach
-                    </select>
-                    @error('activity_id')
-                        <p class="mt-1 text-xs text-[#E07A5F]">{{ $message }}</p>
-                    @enderror
-                </div>
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
-                            Eligible Roster Dataset
-                        </label>
-                        <a href="{{ route('rosters.index') }}" class="text-[11px] font-bold text-[#F8A926] hover:underline">
-                            + Upload New Dataset
-                        </a>
-                    </div>
-                    <select name="roster_id"
-                            class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white transition-all">
-                        @php
-                            $defaultAct = $activities->first();
-                        @endphp
-                        @if($defaultAct && $defaultAct->rosters->count() > 0)
-                            @foreach($defaultAct->rosters as $ros)
-                                <option value="{{ $ros->id }}">
-                                    {{ $ros->dataset_label ?? $ros->filename }} ({{ $ros->total_records }} students)
-                                </option>
-                            @endforeach
-                        @else
-                            <option value="">Default Cohort List (All Enrolled Students)</option>
-                        @endif
-                    </select>
-                    <p class="text-[10px] text-[#8E8E93] mt-1">
-                        Select the eligible student CSV/Excel roster for this attendance session.
-                    </p>
-                </div>
+            <div class="space-y-6 min-w-0">
+            <!-- Activity Target -->
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E] mb-2">
+                    Parent Activity
+                </label>
+                <select name="activity_id" required
+                        class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white transition-all">
+                    @foreach($activities as $act)
+                        <option value="{{ $act->id }}">{{ $act->title }} ({{ $act->faculty }})</option>
+                    @endforeach
+                </select>
+                @error('activity_id')
+                    <p class="mt-1 text-xs text-[#E07A5F]">{{ $message }}</p>
+                @enderror
+                <p class="text-[10px] text-[#8E8E93] mt-1">
+                    Attendance is checked against this activity's active roster.
+                    <a href="{{ route('rosters.index') }}" class="font-bold text-[#F8A926] hover:underline">Upload roster</a>
+                </p>
             </div>
 
             <!-- Session Title & Venue -->
@@ -167,8 +142,11 @@
                 </p>
             </div>
 
+            </div><!-- /left column -->
+
+            <div class="space-y-6 min-w-0 lg:sticky lg:top-[94px]">
             <!-- Interactive Leaflet Map Picker (OpenStreetMap Geofence) -->
-            <div x-show="mode === 'gps' || mode === 'ic_and_gps'" x-transition class="space-y-3">
+            <div x-show="mode === 'gps' || mode === 'ic_and_gps'" x-transition class="space-y-3 min-w-0">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
@@ -185,31 +163,6 @@
                     </button>
                 </div>
 
-                <!-- Quick Presets for UTeM Venues -->
-                <div class="flex items-center gap-2 flex-wrap pt-1">
-                    <span class="text-[10px] uppercase font-bold text-[#8E8E93]">UTeM Presets:</span>
-                    <button type="button" @click="setPreset('Dewan Al-Jazari, FTMK', 2.313889, 102.319444)"
-                            class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors flex items-center gap-1"
-                            :class="venue === 'Dewan Al-Jazari, FTMK' ? 'bg-[#F8A926] text-[#1C1C1E] font-bold shadow-2xs' : 'bg-[#FAF7F2] border border-[#F0EAE1] text-[#1C1C1E] hover:bg-[#F0EAE1]'">
-                        <span>📍 Dewan Al-Jazari FTMK</span>
-                    </button>
-                    <button type="button" @click="setPreset('Dewan Canselor, UTeM', 2.308821, 102.321854)"
-                            class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors flex items-center gap-1"
-                            :class="venue === 'Dewan Canselor, UTeM' ? 'bg-[#F8A926] text-[#1C1C1E] font-bold shadow-2xs' : 'bg-[#FAF7F2] border border-[#F0EAE1] text-[#1C1C1E] hover:bg-[#F0EAE1]'">
-                        <span>📍 Dewan Canselor</span>
-                    </button>
-                    <button type="button" @click="setPreset('Kompleks Sukan, UTeM', 2.312015, 102.324512)"
-                            class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors flex items-center gap-1"
-                            :class="venue === 'Kompleks Sukan, UTeM' ? 'bg-[#F8A926] text-[#1C1C1E] font-bold shadow-2xs' : 'bg-[#FAF7F2] border border-[#F0EAE1] text-[#1C1C1E] hover:bg-[#F0EAE1]'">
-                        <span>📍 Sports Complex</span>
-                    </button>
-                    <button type="button" @click="setPreset('Auditorium FTMK', 2.314050, 102.319020)"
-                            class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors flex items-center gap-1"
-                            :class="venue === 'Auditorium FTMK' ? 'bg-[#F8A926] text-[#1C1C1E] font-bold shadow-2xs' : 'bg-[#FAF7F2] border border-[#F0EAE1] text-[#1C1C1E] hover:bg-[#F0EAE1]'">
-                        <span>📍 Auditorium FTMK</span>
-                    </button>
-                </div>
-
                 <!-- Leaflet Map Canvas Box -->
                 <div class="relative rounded-2xl overflow-hidden border border-[#F0EAE1] shadow-2xs bg-[#FAF7F2]">
                     <div id="venueMap" class="w-full h-80 z-10" style="min-height: 320px;"></div>
@@ -217,7 +170,7 @@
                     <!-- Map Overlay Notification Banner -->
                     <div class="absolute bottom-3 left-3 z-[400] bg-white/95 backdrop-blur-xs px-3.5 py-1.5 rounded-xl border border-[#F0EAE1] text-[11px] font-medium text-[#1C1C1E] shadow-sm flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-[#F8A926] animate-pulse"></span>
-                        <span>Click map or drag marker to reposition geofence boundary</span>
+                        <span>Hover map to scroll-zoom &middot; drag marker to reposition</span>
                     </div>
                 </div>
 
@@ -261,9 +214,10 @@
                            class="w-full px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#F0EAE1] text-xs text-[#1C1C1E] focus:outline-none focus:border-[#F8A926] focus:bg-white transition-all">
                 </div>
             </div>
+            </div><!-- /right column -->
 
             <!-- Submit Button -->
-            <div class="pt-4 border-t border-[#F0EAE1] flex items-center justify-end gap-3">
+            <div class="pt-4 border-t border-[#F0EAE1] flex items-center justify-end gap-3 lg:col-span-2">
                 <a href="{{ route('sessions.index') }}"
                    class="px-5 py-2.5 rounded-xl bg-[#FAF7F2] hover:bg-[#F0EAE1] text-xs font-bold text-[#1C1C1E] border border-[#F0EAE1] transition-colors">
                     Cancel
@@ -315,8 +269,27 @@
                     this.map = L.map('venueMap', {
                         center: [this.lat, this.lng],
                         zoom: 17,
-                        scrollWheelZoom: false
+                        minZoom: 3,
+                        maxZoom: 19,
+                        // Wheel zoom engages on hover so page scroll is not hijacked permanently.
+                        scrollWheelZoom: false,
+                        wheelPxPerZoomLevel: 90,
+                        wheelDebounceTime: 20,
+                        zoomSnap: 0.5,
+                        zoomDelta: 0.5
                     });
+
+                    const mapEl = this.map.getContainer();
+                    mapEl.addEventListener('mouseenter', () => this.map.scrollWheelZoom.enable());
+                    mapEl.addEventListener('mouseleave', () => this.map.scrollWheelZoom.disable());
+                    // At zoom limits, release the wheel so the page keeps scrolling.
+                    mapEl.addEventListener('wheel', (e) => {
+                        const z = this.map.getZoom();
+                        const goingIn = e.deltaY < 0;
+                        if ((goingIn && z >= 19) || (!goingIn && z <= 3)) {
+                            this.map.scrollWheelZoom.disable();
+                        }
+                    }, { passive: true });
 
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
@@ -365,17 +338,6 @@
                 this.radius = parseInt(val, 10);
                 if (this.circle) {
                     this.circle.setRadius(this.radius);
-                }
-            },
-
-            setPreset(presetName, pLat, pLng) {
-                this.venue = presetName;
-                this.updateCoords(pLat, pLng);
-                if (this.map) {
-                    this.map.setView([pLat, pLng], 17);
-                    if (this.marker) {
-                        this.marker.bindPopup(`<b>${presetName}</b><br>Koordinat venue dikemaskini`).openPopup();
-                    }
                 }
             },
 
